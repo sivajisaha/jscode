@@ -1,0 +1,302 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+	<meta charset="utf-8" />
+    <style>
+        .filter{
+              position:absolute;
+              border: solid 1px;
+              top : 60px;
+              background-color : white;
+              width:100px;
+              display:none;
+            }
+    </style>
+    <script src="Scripts/jquery-1.12.4.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        //improvement from basic implementation done at http://embed.plnkr.co/w4z9A4/
+        var tdindexarr = [];
+        var globalfilterarr = [];
+        var tablerows;
+        //below 2 functions are poor hack to overcome lack of ECMAS6 features in IE11
+        function itemfstrmatch(arrobject,matchstr)
+        {
+            var matchfound = false;
+            for (var i = 0; i < arrobject.length; i++) {
+                if (arrobject[i].fstr == matchstr)
+                {
+                    return arrobject[i];
+                }
+            }
+            return undefined;
+        }
+        function itemindexmatch(arrobject, matchindex) {
+            var matchfound = false;
+            for (var i = 0; i < arrobject.length; i++) {
+                if (arrobject[i].index == matchindex) {
+                    return arrobject[i];
+                }
+            }
+            return undefined;
+        }
+        
+        $(document).ready(function () {
+            tdindexarr = [0, 1, 2];
+            tablerows = $("#tblmain").find("tbody tr");
+            tdindexarr.forEach(function (item, index, array) {
+                var filter = new Object();
+                filter.index = item;
+                filter.uniquestrarr = new Array();
+                tablerows.each(function (ind, ele) {
+                    var currenttd = $(ele).children()[item];
+                    //if (filter.uniquestrarr.find(x=>x.fstr === currenttd.innerHTML) == undefined)//non-IE 11 compliant
+                    if (itemfstrmatch(filter.uniquestrarr, currenttd.innerHTML) == undefined)//IE 11 compliant
+                    {
+                        var uniquestritem = new Object();
+                        uniquestritem.fstr= currenttd.innerHTML;
+                        uniquestritem.checked = "y";
+                        uniquestritem.secondaryvisible = 'y'; // turns to false only by applicable rows being made invisible by unchecking some other filter 
+                        filter.uniquestrarr.push(uniquestritem);
+                    }
+                    
+                });
+                globalfilterarr.push(filter);
+                
+            });
+
+        });
+        function showFilterOption(tdObjectid, columnindex) {
+            tdObject = $('#' + tdObjectid);
+            var filterGrid = $(tdObject).find(".filter");
+            //var currfilter = globalfilterarr.find(x=>x.index === columnindex);//non-IE 11 compliant
+            var currfilter = itemindexmatch(globalfilterarr, columnindex);//IE 11 compliant
+            console.log("clicked" + currfilter.index);
+
+            filterGrid.empty();
+            filterGrid.append('<div><input id="all" type="checkbox" checked>Select All</div>');
+            currfilter.uniquestrarr.forEach(function (item, index, array) {
+                if(item.checked =='y' && item.secondaryvisible =='y')
+                {
+                    var div = document.createElement("div");
+                    div.classList.add("grid-item")
+                    div.innerHTML = '<input type="checkbox" value="' + item.fstr + '" checked >' + item.fstr;
+                    filterGrid.append(div);
+                }
+                else if(item.checked =='n' && item.secondaryvisible =='y')
+                {
+                    var div = document.createElement("div");
+                    div.classList.add("grid-item")
+                    div.innerHTML = '<input type="checkbox" value="' + item.fstr + '">' + item.fstr;
+                    filterGrid.append(div);
+                }
+            });
+            filterGrid.append('<div><input id="close" type="button" value="Close"/><input id="ok" type="button" value="Ok"/></div>');
+            
+            if (filterGrid.is(":visible")) {
+                filterGrid.hide();
+                return;
+            }
+
+            $(".filter").hide();
+
+            filterGrid.show();
+
+            var $closeBtn = filterGrid.find("#close");
+            var $okBtn = filterGrid.find("#ok");
+            var $checkElems = filterGrid.find("input[type='checkbox']");
+            var $gridItems = filterGrid.find(".grid-item");
+            var $all = filterGrid.find("#all");
+
+            $closeBtn.click(function () {
+                filterGrid.hide();
+                return false;
+            });
+
+            $okBtn.click(function () {
+                var currinstancefilterarr = [];
+                var ifdirty = false;
+                //section to set row visibility
+                filterGrid.find(".grid-item").each(function (gridind, gridele) {
+                    var chckboxval = $(gridele).find("input").attr('value');
+                    //var currfilteritem = currfilter.uniquestrarr.find(x=>x.fstr === chckboxval);//non-IE 11 compliant
+                    var currfilteritem = itemfstrmatch(currfilter.uniquestrarr,chckboxval);//IE 11 compliant
+                    if ($(gridele).find("input").is(":checked")) {
+                        
+                        currinstancefilterarr.push(chckboxval);
+                        if (currfilteritem.checked == 'n') {//change from last state
+                            ifdirty = true;
+                        }
+                        currfilteritem.checked = 'y';//update check status for parent filter list
+                        //console.log("OK:" + chckboxval);
+                    }
+                    else 
+                    {
+                        if (currfilteritem.checked == 'y')//change from last state
+                        {
+                            ifdirty = true;
+                        }
+                        currfilteritem.checked = 'n';//update check status for parent filter list
+                    }
+                });
+
+                if (!ifdirty)// no change happened from previous state, user just pressed ok without changing checkbox status, no need to further process
+                {
+                    console.log("simply returning");
+                    filterGrid.hide();
+                    return false;
+                }
+                else
+                {
+                    tablerows.each(function (rowind, rowele) {
+                        var currenttd = $(rowele).children()[columnindex];
+                        //console.log("currenttd.innerHTML:" + currenttd.innerHTML);
+                        if (currinstancefilterarr.indexOf(currenttd.innerHTML) == -1)//match is not found but row is visible, so its time to hide
+                        {
+                            $(rowele).hide();
+                        }
+                        else {
+                            //before blindly showing up rows which may have been rendered invisible due to unchcecking of chekcboxes on other filters, do check on other filters
+                            var rowtoshow = true;
+                            tdindexarr.forEach(function (item, index, array) {
+                                if (item != columnindex)// manipulating forced visibility for other filters
+                                {
+                                    var othertd = $(rowele).children()[item];
+                                    //var otherfilter = globalfilterarr.find(x=>x.index === item);//non-IE 11 compliant
+                                    var otherfilter = itemindexmatch(globalfilterarr,item);//IE 11 compliant
+                                    //var otherfilteritem = otherfilter.uniquestrarr.find(x=>x.fstr === othertd.innerHTML);//non-IE11 compliant
+                                    var otherfilteritem = itemfstrmatch(otherfilter.uniquestrarr,othertd.innerHTML);// IE 11 compliant
+                                    if (otherfilteritem.checked == 'n') {//means this row has been made invisible by unchecking some other filter , which wont touch
+                                        rowtoshow = false;
+                                    }
+                                }
+                            });
+                            if (rowtoshow) {
+                                $(rowele).show();
+                            }
+                        }
+
+                    });
+                    //end of section to set row visibility
+                    //start of section to reset all filter windows 
+                    tdindexarr.forEach(function (item, index, array) {
+                
+                        if (item != columnindex) // manipulating visibility for other filter windows
+                        {
+                            //var otherfilter = globalfilterarr.find(x=>x.index === item);//non-IE 11 compliant
+                            var otherfilter = itemindexmatch(globalfilterarr, item);//IE 11 compliant
+                            var otherfilteruniquestr = [];
+                            tablerows.each(function (rowind, rowele) {
+                                var othertd = $(rowele).children()[item];
+                                if ($(rowele).is(":visible")) {
+                                    if (otherfilteruniquestr.indexOf(othertd.innerHTML) == -1) {
+                                        otherfilteruniquestr.push(othertd.innerHTML);//making a unique list for filter values for rows which are still visible
+                                    }
+                                }
+                            });
+                            //passing through unique list of filter vals through original list of filter vals
+                            otherfilter.uniquestrarr.forEach(function (ofitem, ofindex, ofarray) {
+                                if (otherfilteruniquestr.indexOf(ofitem.fstr) == -1) {//means this filter val is removed from current ok button press, so cannot be shown on next filter dropdown
+                                    if (ofitem.checked != 'n') {// we are not touching mother filter which caused change in row visibility from a previous case
+                                        console.log("removing visibility for:" + ofitem.fstr);
+                                        ofitem.secondaryvisible = 'n';
+                                    }
+                                }
+                                else //match found , which means some additional rows have became visible which were hidden from a previous iteration, so its time to adjust the filter vals
+                                {
+                                    //if (ofitem.checked != 'n') {// again we are not touching mother filter which caused change in row visibility from a previous case
+                                        console.log("bringing back visibility for:" + ofitem.fstr);
+                                        ofitem.secondaryvisible = 'y';
+                                    //}
+                                }
+                            });
+
+                        }
+                    });
+                    //end of section to reset all filter windows 
+                    filterGrid.hide();
+
+                    //redundant script for debugging
+                    tdindexarr.forEach(function (item, index, array) {
+                        console.log("Object status for column index:" + item);
+                        //var tempfilter = globalfilterarr.find(x=>x.index === item);//non-IE 11 compliant
+                        var tempfilter = itemindexmatch(globalfilterarr,item);//IE 11 compliant
+                        tempfilter.uniquestrarr.forEach(function (item, index, array) {
+                            console.log("value:" + item.fstr + " checked:" + item.checked + " secondary visibility:" + item.secondaryvisible+ " primary visibility:"+ item.primaryvisible);
+                        });
+                    });
+                    //end of redundant script
+                    return false;
+                }
+            });
+            $checkElems.click(function (event) {
+                event.stopPropagation();
+            });
+
+            $gridItems.click(function (event) {
+                var chk = $(this).find("input[type='checkbox']");
+                $(chk).prop("checked", !$(chk).is(":checked"));
+            });
+
+            $all.change(function () {
+                var chked = $(this).is(":checked");
+                filterGrid.find(".grid-item [type='checkbox']").prop("checked", chked);
+            })
+
+            filterGrid.click(function (event) {
+                event.stopPropagation();
+            });
+
+        }
+        
+    </script>
+</head>
+<body>
+    <table border="1" id="tblmain">
+        <thead>
+            <tr>
+                <td id="tdfilter0" index=0>Country<a href="#" onclick="javascript:showFilterOption('tdfilter0',0)"><img src="images/filter.png" id="imgfilter" /></a><div class="filter"></div></td>
+                <td id="tdfilter1" index=1>Animal<a href="#" onclick="javascript:showFilterOption('tdfilter1',1)"><img src="images/filter.png" id="imgfilter" /></a><div class="filter"></div></td>
+                <td id="tdfilter2" index=2>City<a href="#" onclick="javascript:showFilterOption('tdfilter2',2)"><img src="images/filter.png" id="imgfilter" /></a><div class="filter"></div></td>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>UK</td>
+                <td>Cat</td>
+                <td>Kol</td>
+            </tr>
+            <tr>
+                <td>US</td>
+                <td>Dog</td>
+                <td>Lon</td>
+            </tr>
+            <tr>
+                <td>IND</td>
+                <td>Rat</td>
+                <td>NY</td>
+            </tr>
+            <tr>
+                <td>CHN</td>
+                <td>Cow</td>
+                <td>Del</td>
+            </tr>
+            <tr>
+                <td>US</td>
+                <td>Dog</td>
+                <td>NY</td>
+            </tr>
+            <tr>
+                <td>CHN</td>
+                <td>Cat</td>
+                <td>Kol</td>
+            </tr>
+            <tr>
+                <td>GER</td>
+                <td>Cat</td>
+                <td>Mun</td>
+            </tr>
+        </tbody>
+    </table>
+</body>
+</html>
