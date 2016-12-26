@@ -1,4 +1,4 @@
-Excel like filter on HTML table using Javascript
+#Excel like filter on HTML table using Javascript
 
 This is an attempt to simulate filtering capability in MS Excel sheet on HTML using Javascript. Initially i thought this is quite a common ask , but was bit surprised when i googled around this capability and found virtually none useful!!
 
